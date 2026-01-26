@@ -2,6 +2,8 @@ import bcrypt from 'bcrypt';
 import User from '../models/User.js';
 import { generateTokens } from './tokenService.js';
 import { sendWelcomeEmail } from './emailService.js';
+import { createCustomerInCRMS } from './customerService.js';
+import * as logger from '../utils/logger.js';
 
 /**
  * Authentication Service
@@ -49,6 +51,38 @@ export const registerUser = async (userData) => {
 
   // Generate tokens
   const tokens = await generateTokens(user);
+
+  // Create customer in CRMS if role is Customer (non-blocking)
+  if (user.role === 'Customer') {
+    // Fire and forget - don't await to avoid blocking registration
+    createCustomerInCRMS(user)
+      .then((result) => {
+        if (result.success) {
+          logger.info('Customer created in CRMS', {
+            userId: user._id,
+            customerId: result.data.data?.customerId,
+            email: user.email,
+            timestamp: new Date().toISOString(),
+          });
+        } else {
+          logger.warn('Failed to create customer in CRMS', {
+            userId: user._id,
+            email: user.email,
+            error: result.error,
+            timestamp: new Date().toISOString(),
+          });
+          // Customer can be created later via manual sync or retry
+        }
+      })
+      .catch((error) => {
+        logger.error('CRMS integration error', {
+          userId: user._id,
+          email: user.email,
+          error: error.message,
+          timestamp: new Date().toISOString(),
+        });
+      });
+  }
 
   // Remove password from response
   const userResponse = user.toJSON();

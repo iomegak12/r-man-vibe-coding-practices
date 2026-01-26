@@ -1,6 +1,41 @@
 # Dependencies
 node_modules/
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.coverage
+.coverage.*
+htmlcov/
+*.cover
+.hypothesis/
+
 # Environment variables
 .env
 .env.local
@@ -18,10 +53,13 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+.spyderproject
+.spyproject
+.ropeproject
+*.sublime-project
+*.sublime-workspace
 
 # Build outputs
-dist/
-build/
 *.tsbuildinfo
 
 # Test coverage
@@ -30,3 +68,16 @@ coverage/
 # Temporary files
 *.tmp
 *.temp
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
