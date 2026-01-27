@@ -913,19 +913,21 @@ async def delete_customer(
     "/{customerId}/orders",
     response_model=APIResponse[dict],
     summary="Get Customer Orders",
-    description="Get list of orders for a specific customer (requires Order Service integration)"
+    description="Get list of orders for a specific customer"
 )
 async def get_customer_orders(
     customerId: str,
     current_user: Annotated[JWTUser, Depends(require_admin)],
     db: Annotated[AsyncIOMotorDatabase, Depends(get_database)],
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(10, ge=1, le=100, description="Items per page")
+    limit: int = Query(10, ge=1, le=100, description="Number of orders to return"),
+    status: Optional[str] = Query(None, description="Filter by order status")
 ):
     """
-    Get customer orders (placeholder - requires Order Service integration)
+    Get customer order history from Order Service
     """
     try:
+        from app.services.order_client import order_service_client
+        
         # Validate ObjectId
         if not validate_object_id(customerId):
             raise HTTPException(
@@ -941,19 +943,52 @@ async def get_customer_orders(
                 detail="Customer not found"
             )
         
-        # Placeholder response until Order Service is implemented
-        info(f"Orders requested for customer {customerId} - Order Service integration pending")
+        # Get user ID for Order Service query
+        user_id = customer.get("userId")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Customer has no associated user ID"
+            )
         
-        return APIResponse(
-            success=True,
-            message="Order Service integration pending",
-            data={
-                "customerId": customerId,
-                "orders": [],
-                "totalOrders": customer["totalOrders"],
-                "note": "This endpoint will be implemented when Order Service is available"
-            }
-        )
+        # Fetch orders from Order Service
+        try:
+            order_data = await order_service_client.get_customer_orders(
+                customer_id=user_id,
+                page=1,
+                limit=limit,
+                status=status
+            )
+            
+            info(f"Retrieved orders for customer {customerId} from Order Service")
+            
+            return APIResponse(
+                success=True,
+                message="Customer orders retrieved successfully",
+                data={
+                    "customerId": customerId,
+                    "userId": user_id,
+                    **order_data
+                }
+            )
+            
+        except Exception as service_error:
+            error(f"Order Service error: {str(service_error)}")
+            # Return graceful response if service is unavailable
+            return APIResponse(
+                success=True,
+                message="Order Service temporarily unavailable",
+                data={
+                    "customerId": customerId,
+                    "summary": {
+                        "totalOrders": customer.get("totalOrders", 0),
+                        "totalOrderValue": customer.get("totalOrderValue", 0.0),
+                        "lastOrderDate": customer.get("lastOrderDate")
+                    },
+                    "recentOrders": [],
+                    "note": "Unable to fetch detailed order information at this time"
+                }
+            )
         
     except HTTPException:
         raise
@@ -969,19 +1004,21 @@ async def get_customer_orders(
     "/{customerId}/complaints",
     response_model=APIResponse[dict],
     summary="Get Customer Complaints",
-    description="Get list of complaints for a specific customer (requires Complaint Service integration)"
+    description="Get list of complaints for a specific customer"
 )
 async def get_customer_complaints(
     customerId: str,
     current_user: Annotated[JWTUser, Depends(require_admin)],
     db: Annotated[AsyncIOMotorDatabase, Depends(get_database)],
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(10, ge=1, le=100, description="Items per page")
+    limit: int = Query(10, ge=1, le=100, description="Number of complaints to return"),
+    status: Optional[str] = Query(None, description="Filter by complaint status")
 ):
     """
-    Get customer complaints (placeholder - requires Complaint Service integration)
+    Get customer complaint history from Complaint Service
     """
     try:
+        from app.services.complaint_client import complaint_service_client
+        
         # Validate ObjectId
         if not validate_object_id(customerId):
             raise HTTPException(
@@ -997,20 +1034,52 @@ async def get_customer_complaints(
                 detail="Customer not found"
             )
         
-        # Placeholder response until Complaint Service is implemented
-        info(f"Complaints requested for customer {customerId} - Complaint Service integration pending")
+        # Get user ID for Complaint Service query
+        user_id = customer.get("userId")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Customer has no associated user ID"
+            )
         
-        return APIResponse(
-            success=True,
-            message="Complaint Service integration pending",
-            data={
-                "customerId": customerId,
-                "complaints": [],
-                "totalComplaints": customer["totalComplaints"],
-                "openComplaints": customer["openComplaints"],
-                "note": "This endpoint will be implemented when Complaint Service is available"
-            }
-        )
+        # Fetch complaints from Complaint Service
+        try:
+            complaint_data = await complaint_service_client.get_customer_complaints(
+                customer_id=user_id,
+                page=1,
+                limit=limit,
+                status=status
+            )
+            
+            info(f"Retrieved complaints for customer {customerId} from Complaint Service")
+            
+            return APIResponse(
+                success=True,
+                message="Customer complaints retrieved successfully",
+                data={
+                    "customerId": customerId,
+                    "userId": user_id,
+                    **complaint_data
+                }
+            )
+            
+        except Exception as service_error:
+            error(f"Complaint Service error: {str(service_error)}")
+            # Return graceful response if service is unavailable
+            return APIResponse(
+                success=True,
+                message="Complaint Service temporarily unavailable",
+                data={
+                    "customerId": customerId,
+                    "summary": {
+                        "totalComplaints": customer.get("totalComplaints", 0),
+                        "openComplaints": customer.get("openComplaints", 0),
+                        "lastComplaintDate": customer.get("lastComplaintDate")
+                    },
+                    "recentComplaints": [],
+                    "note": "Unable to fetch detailed complaint information at this time"
+                }
+            )
         
     except HTTPException:
         raise

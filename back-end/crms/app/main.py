@@ -14,6 +14,9 @@ from app.middleware.error_handler import (
     validation_exception_handler,
     general_exception_handler
 )
+from app.middleware.request_logging import RequestLoggingMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.security import SecurityHeadersMiddleware
 
 
 @asynccontextmanager
@@ -161,6 +164,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add security middleware (order matters: security -> rate limit -> logging)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=100, requests_per_hour=1000)
+app.add_middleware(RequestLoggingMiddleware)
 
 # Register error handlers
 app.add_exception_handler(HTTPException, http_exception_handler)

@@ -19,6 +19,7 @@ from app.middleware.error_handlers import (
 from app.routes import orders
 from app.routes import admin_orders
 from app.routes import admin_returns
+from app.routes import internal
 
 
 @asynccontextmanager
@@ -149,6 +150,7 @@ app.add_exception_handler(Exception, general_exception_handler)
 app.include_router(orders.router)
 app.include_router(admin_orders.router)
 app.include_router(admin_returns.router)
+app.include_router(internal.router)
 
 
 # Health check endpoint

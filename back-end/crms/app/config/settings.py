@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     
     # Service-to-Service Communication
     AUTH_SERVICE_URL: str = "http://localhost:5001"
+    ORDER_SERVICE_URL: str = "http://localhost:5003"
+    COMPLAINT_SERVICE_URL: str = "http://localhost:5004"
     SERVICE_API_KEY: str
     SERVICE_TIMEOUT: int = 30
     
