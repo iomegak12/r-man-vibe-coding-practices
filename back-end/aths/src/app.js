@@ -23,7 +23,33 @@ import { logError } from './utils/errorHandler.js';
 const app = express();
 
 // Security Middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'", // Required for Swagger UI inline scripts
+        "https://cdn.jsdelivr.net", // Required for Swagger UI CDN
+      ],
+      styleSrc: [
+        "'self'",
+        "'unsafe-inline'", // Required for Swagger UI inline styles
+        "https://cdn.jsdelivr.net",
+      ],
+      imgSrc: [
+        "'self'",
+        "data:", // Required for Swagger UI images
+        "https://cdn.jsdelivr.net",
+      ],
+      fontSrc: [
+        "'self'",
+        "data:",
+        "https://cdn.jsdelivr.net",
+      ],
+    },
+  },
+}));
 
 // Request ID & Performance Tracking
 app.use(requestId);

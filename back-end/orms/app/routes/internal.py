@@ -186,7 +186,7 @@ async def get_order_by_id(
             "customerName": order.get("customerName", ""),
             "customerEmail": order.get("customerEmail", ""),
             "orderDate": order.get("orderDate"),
-            "orderStatus": order.get("orderStatus", "Unknown"),
+            "status": order.get("status", "Unknown"),
             "totalAmount": order.get("totalAmount", 0.0),
             "items": order_items,
             "deliveryAddress": order.get("deliveryAddress"),

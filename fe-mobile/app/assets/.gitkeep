@@ -1,0 +1,10 @@
+# Expo Default Config
+# This file helps Expo prebuild work without custom assets
+
+# Use Expo's default icons and splash screen for now
+# Custom assets can be added later in the assets/ directory
+
+# Required directories
+assets/
+assets/fonts/
+assets/images/
