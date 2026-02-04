@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log
+.env
+.env.*
+!.env.production
+.git
+.gitignore
+README.md
+*.md
+.vscode
+.idea
+build
+coverage
+.DS_Store
+Thumbs.db
+public/.DS_Store
+src/.DS_Store

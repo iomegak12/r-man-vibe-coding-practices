@@ -1,15 +1,23 @@
 """Logging utility for the application"""
 import logging
-from app.config.settings import settings
+
+# Import settings with try/except to handle initialization issues
+try:
+    from app.config.settings import settings
+    SERVICE_NAME = settings.SERVICE_NAME
+    LOG_LEVEL = settings.LOG_LEVEL
+except Exception:
+    SERVICE_NAME = "complaint-service"
+    LOG_LEVEL = "INFO"
 
 # Configure logging
 logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL),
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-logger = logging.getLogger(settings.SERVICE_NAME)
+logger = logging.getLogger(SERVICE_NAME)
 
 
 def info(message: str):

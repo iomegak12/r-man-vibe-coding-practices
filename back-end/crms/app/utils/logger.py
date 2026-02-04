@@ -6,8 +6,18 @@ import logging
 import sys
 import json
 from datetime import datetime
-from typing import Any, Dict
-from app.config.settings import settings
+from typing import Any, Dict, Optional
+
+# Import settings with try/except to handle initialization issues
+try:
+    from app.config.settings import settings
+    SERVICE_NAME = settings.SERVICE_NAME
+    LOG_LEVEL = settings.LOG_LEVEL.upper()
+    USE_JSON = settings.LOG_FORMAT.lower() == "json" or settings.ENVIRONMENT == "production"
+except Exception:
+    SERVICE_NAME = "customer-service"
+    LOG_LEVEL = "INFO"
+    USE_JSON = False
 
 
 class JSONFormatter(logging.Formatter):
@@ -20,7 +30,7 @@ class JSONFormatter(logging.Formatter):
         
         log_data = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
-            "service": settings.SERVICE_NAME,
+            "service": SERVICE_NAME,
             "level": record.levelname,
             "message": record.getMessage(),
             "module": record.module,
@@ -29,7 +39,7 @@ class JSONFormatter(logging.Formatter):
         }
         
         # Add extra fields if present
-        if hasattr(record, 'extra_data'):
+        if hasattr(record, 'extra_data') and record.extra_data:
             log_data.update(record.extra_data)
         
         # Add exception info if present
@@ -55,45 +65,45 @@ class SimpleFormatter(logging.Formatter):
         if hasattr(record, 'extra_data') and record.extra_data:
             extra = f" | {json.dumps(record.extra_data)}"
         
-        return f"{timestamp} - {settings.SERVICE_NAME} - {level} - {message}{extra}"
+        return f"{timestamp} - {SERVICE_NAME} - {level} - {message}{extra}"
 
 
 # Choose formatter based on environment
-if settings.ENVIRONMENT == "production":
-    formatter = JSONFormatter()
-else:
-    formatter = SimpleFormatter()
+formatter = JSONFormatter() if USE_JSON else SimpleFormatter()
 
 # Configure logging
 handler = logging.StreamHandler(sys.stdout)
 handler.setFormatter(formatter)
 
-logger = logging.getLogger(settings.SERVICE_NAME)
-logger.setLevel(getattr(logging, settings.LOG_LEVEL.upper()))
+logger = logging.getLogger(SERVICE_NAME)
+logger.setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
 logger.addHandler(handler)
+
+# Prevent duplicate logs
+logger.propagate = False
 
 
 def info(message: str, **kwargs):
     """Log info message with optional structured data"""
-    extra_data = kwargs if kwargs else None
+    extra_data = kwargs if kwargs else {}
     logger.info(message, extra={'extra_data': extra_data})
 
 
 def error(message: str, **kwargs):
     """Log error message with optional structured data"""
-    extra_data = kwargs if kwargs else None
+    extra_data = kwargs if kwargs else {}
     logger.error(message, extra={'extra_data': extra_data})
 
 
 def warning(message: str, **kwargs):
     """Log warning message with optional structured data"""
-    extra_data = kwargs if kwargs else None
+    extra_data = kwargs if kwargs else {}
     logger.warning(message, extra={'extra_data': extra_data})
 
 
 def debug(message: str, **kwargs):
     """Log debug message with optional structured data"""
-    extra_data = kwargs if kwargs else None
+    extra_data = kwargs if kwargs else {}
     logger.debug(message, extra={'extra_data': extra_data})
 
 

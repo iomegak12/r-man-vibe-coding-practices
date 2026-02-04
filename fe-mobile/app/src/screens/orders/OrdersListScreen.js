@@ -192,9 +192,9 @@ const OrdersListScreen = ({ navigation, route }) => {
 
     if (searchQuery.trim() !== '') {
       filtered = filtered.filter(order =>
-        order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.customerEmail.toLowerCase().includes(searchQuery.toLowerCase())
+        (order.orderId || order.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (order.customerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (order.customerEmail || '').toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 

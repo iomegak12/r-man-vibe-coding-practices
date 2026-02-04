@@ -1,0 +1,402 @@
+# =====================================================
+# Networks
+# =====================================================
+networks:
+  r-man-network:
+    driver: bridge
+    name: r-man-network
+
+# =====================================================
+# Volumes
+# =====================================================
+volumes:
+  mongodb_data:
+    driver: local
+    name: rman-mongodb-data
+  mongodb_config:
+    driver: local
+    name: rman-mongodb-config
+  aths_uploads:
+    driver: local
+    name: rman-aths-uploads
+  aths_logs:
+    driver: local
+    name: rman-aths-logs
+  crms_logs:
+    driver: local
+    name: rman-crms-logs
+  orms_logs:
+    driver: local
+    name: rman-orms-logs
+  cmps_logs:
+    driver: local
+    name: rman-cmps-logs
+
+services:
+  # =====================================================
+  # MongoDB Service (Shared Database)
+  # =====================================================
+  mongodb:
+    image: mongo:7.0
+    container_name: rman-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: auth_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - r-man-network
+
+  # =====================================================
+  # Mongo Express (MongoDB Admin UI)
+  # =====================================================
+  mongo-express:
+    image: mongo-express:latest
+    container_name: rman-mongo-express
+    restart: unless-stopped
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: password123
+      ME_CONFIG_MONGODB_URL: mongodb://admin:password123@mongodb:27017/
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+      ME_CONFIG_SITE_BASEURL: /
+    ports:
+      - "8081:8081"
+    depends_on:
+      - mongodb
+    networks:
+      - r-man-network
+
+  # =====================================================
+  # ATHS - Authentication Service
+  # =====================================================
+  aths:
+    build:
+      context: ../back-end/aths
+      dockerfile: Dockerfile
+    image: rman/aths:latest
+    container_name: rman-aths
+    restart: unless-stopped
+    environment:
+      # Server Configuration
+      NODE_ENV: production
+      PORT: 5001
+      API_VERSION: v1
+
+      # MongoDB Configuration
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/auth_db?authSource=admin
+      MONGODB_TEST_URI: mongodb://admin:password123@mongodb:27017/auth_db_test?authSource=admin
+
+      # JWT Configuration
+      JWT_SECRET: your_super_secret_jwt_key_change_this_in_production
+      JWT_ACCESS_TOKEN_EXPIRATION: 30m
+      JWT_REFRESH_TOKEN_EXPIRATION: 7d
+
+      # Bcrypt Configuration
+      BCRYPT_SALT_ROUNDS: 12
+
+      # Email Configuration (Gmail)
+      EMAIL_SERVICE: gmail
+      EMAIL_HOST: smtp.gmail.com
+      EMAIL_PORT: 587
+      EMAIL_SECURE: false
+      EMAIL_USER: your-email@gmail.com
+      EMAIL_PASSWORD: your-app-password
+      EMAIL_FROM: noreply@rman-ecommerce.com
+      EMAIL_FROM_NAME: R-MAN E-Commerce
+
+      # Password Reset Configuration
+      PASSWORD_RESET_TOKEN_EXPIRATION: 1h
+      PASSWORD_RESET_URL: http://localhost:3000/reset-password
+
+      # Email Verification Configuration
+      EMAIL_VERIFICATION_URL: http://localhost:3000/verify-email
+
+      # CORS Configuration
+      CORS_ORIGIN: "*"
+      CORS_CREDENTIALS: true
+
+      # Rate Limiting
+      RATE_LIMIT_ENABLED: false
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100
+
+      # Service-to-Service Communication
+      SERVICE_API_KEY: your_internal_service_api_key_change_this
+
+      # Logging
+      LOG_LEVEL: info
+
+      # Audit Logging
+      AUDIT_LOG_RETENTION_DAYS: 90
+
+      # CRMS Integration
+      CRMS_BASE_URL: http://crms:5002
+      CRMS_SERVICE_API_KEY: b3a285fafe93756687343b95de0d4c82
+    ports:
+      - "5001:5001"
+    volumes:
+      - aths_uploads:/app/uploads
+      - aths_logs:/app/logs
+    depends_on:
+      - mongodb
+    networks:
+      - r-man-network
+
+  # =====================================================
+  # CRMS - Customer Management Service
+  # =====================================================
+  crms:
+    build:
+      context: ../back-end/crms
+      dockerfile: Dockerfile
+    image: rman/crms:latest
+    container_name: rman-crms
+    restart: unless-stopped
+    environment:
+      # Server Configuration
+      ENVIRONMENT: production
+      SERVICE_NAME: customer-service
+      SERVICE_VERSION: 1.0.0
+      PORT: 5002
+      API_VERSION: v1
+
+      # MongoDB Configuration
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/r-man-customers-db?authSource=admin
+      MONGODB_MIN_POOL_SIZE: 10
+      MONGODB_MAX_POOL_SIZE: 50
+
+      # JWT Configuration (for token validation)
+      JWT_SECRET: your_super_secret_jwt_key_change_this_in_production
+      JWT_ALGORITHM: HS256
+
+      # Service-to-Service Communication
+      AUTH_SERVICE_URL: http://aths:5001
+      ORDER_SERVICE_URL: http://orms:5003
+      COMPLAINT_SERVICE_URL: http://cmps:5004
+      SERVICE_API_KEY: your_internal_service_api_key_change_this
+      SERVICE_TIMEOUT: 30
+
+      # CORS Configuration
+      CORS_ORIGINS: '["http://localhost:3000","http://localhost:19006"]'
+      CORS_CREDENTIALS: true
+
+      # Pagination
+      DEFAULT_PAGE_SIZE: 20
+      MAX_PAGE_SIZE: 100
+
+      # Logging
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+    ports:
+      - "5002:5002"
+    volumes:
+      - crms_logs:/app/logs
+    depends_on:
+      - mongodb
+      - aths
+    networks:
+      - r-man-network
+
+  # =====================================================
+  # ORMS - Order Management Service
+  # =====================================================
+  orms:
+    build:
+      context: ../back-end/orms
+      dockerfile: Dockerfile
+    image: rman/orms:latest
+    container_name: rman-orms
+    restart: unless-stopped
+    environment:
+      # Server Configuration
+      ENVIRONMENT: production
+      SERVICE_NAME: order-service
+      SERVICE_VERSION: 1.0.0
+      PORT: 5003
+      API_VERSION: v1
+
+      # MongoDB Configuration
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/r-man-orders-db?authSource=admin
+      MONGODB_MIN_POOL_SIZE: 10
+      MONGODB_MAX_POOL_SIZE: 50
+
+      # JWT Configuration (for token validation)
+      JWT_SECRET: your_super_secret_jwt_key_change_this_in_production
+      JWT_ALGORITHM: HS256
+
+      # Service-to-Service Communication
+      AUTH_SERVICE_URL: http://aths:5001
+      CUSTOMER_SERVICE_URL: http://crms:5002
+      SERVICE_API_KEY: your_internal_service_api_key_change_this
+      SERVICE_TIMEOUT: 30
+
+      # CORS Configuration
+      CORS_ORIGINS: '["http://localhost:3000","http://localhost:19006"]'
+      CORS_CREDENTIALS: true
+
+      # Pagination
+      DEFAULT_PAGE_SIZE: 20
+      MAX_PAGE_SIZE: 100
+
+      # Order Configuration
+      ORDER_ID_PREFIX: ORD
+      RETURN_ID_PREFIX: RET
+      ORDER_CANCELLATION_ALLOWED_STATUSES: '["Placed","Processing"]'
+      ORDER_RETURN_ALLOWED_STATUSES: '["Delivered"]'
+
+      # Logging
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+    ports:
+      - "5003:5003"
+    volumes:
+      - orms_logs:/app/logs
+    depends_on:
+      - mongodb
+      - aths
+      - crms
+    networks:
+      - r-man-network
+
+  # =====================================================
+  # CMPS - Complaint Management Service
+  # =====================================================
+  cmps:
+    build:
+      context: ../back-end/cmps
+      dockerfile: Dockerfile
+    image: rman/cmps:latest
+    container_name: rman-cmps
+    restart: unless-stopped
+    environment:
+      # Environment Configuration
+      ENVIRONMENT: production
+
+      # Service Configuration
+      SERVICE_NAME: complaint-service
+      PORT: 5004
+      API_VERSION: v1
+
+      # MongoDB Configuration
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/complaint_db?authSource=admin
+      MONGODB_MIN_POOL_SIZE: 10
+      MONGODB_MAX_POOL_SIZE: 50
+
+      # JWT Configuration
+      JWT_SECRET: your_super_secret_jwt_key_change_this_in_production
+      JWT_ALGORITHM: HS256
+
+      # Service URLs
+      AUTH_SERVICE_URL: http://aths:5001
+      CUSTOMER_SERVICE_URL: http://crms:5002
+      ORDER_SERVICE_URL: http://orms:5003
+
+      # Service API Key for internal communication
+      SERVICE_API_KEY: your_internal_service_api_key_change_this
+
+      # Email Configuration
+      EMAIL_HOST: smtp.gmail.com
+      EMAIL_PORT: 587
+      EMAIL_USER: your-email@gmail.com
+      EMAIL_PASSWORD: your-app-password
+      EMAIL_FROM: noreply@rman-ecommerce.com
+      EMAIL_FROM_NAME: R-MAN E-Commerce Support
+
+      # Complaint Configuration
+      COMPLAINT_ID_PREFIX: CMP
+
+      # CORS Configuration
+      CORS_ORIGINS: '["http://localhost:3000","http://localhost:3001"]'
+
+      # Logging
+      LOG_LEVEL: INFO
+    ports:
+      - "5004:5004"
+    volumes:
+      - cmps_logs:/app/logs
+    depends_on:
+      - mongodb
+      - aths
+      - crms
+      - orms
+    networks:
+      - r-man-network
+
+  # =====================================================
+  # Web Application (React Frontend)
+  # =====================================================
+  web:
+    build:
+      context: ../front-end/app
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_ATHS_URL: http://localhost:5001
+        REACT_APP_CRMS_URL: http://localhost:5002
+        REACT_APP_ORMS_URL: http://localhost:5003
+        REACT_APP_CMPS_URL: http://localhost:5004
+        REACT_APP_ENV: production
+    image: rman/web:latest
+    container_name: rman-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - aths
+      - crms
+      - orms
+      - cmps
+    networks:
+      - r-man-network
+
+  # =====================================================
+  # Database Seeder (Runs once after all services start)
+  # =====================================================
+  seeder:
+    build:
+      context: ../back-end/seeding
+      dockerfile: Dockerfile
+    image: rman/seeder:latest
+    container_name: rman-seeder
+    restart: "no"
+    environment:
+      # MongoDB Configuration
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/?authSource=admin
+      
+      # Database Names
+      AUTH_DB_NAME: auth_db
+      CUSTOMER_DB_NAME: r-man-customers-db
+      ORDER_DB_NAME: r-man-orders-db
+      COMPLAINT_DB_NAME: complaint_db
+      
+      # Seeding Configuration
+      FORCE_SEEDING: false
+      
+      # Default Password
+      DEFAULT_PASSWORD: Rman123!
+      
+      # Bcrypt Configuration
+      BCRYPT_SALT_ROUNDS: 12
+    command: >
+      sh -c "
+        echo '⏳ Waiting for all services to be ready...' &&
+        sleep 30 &&
+        echo '🌱 Starting database seeding...' &&
+        npm run seed &&
+        echo '✅ Database seeding completed!'
+      "
+    depends_on:
+      - mongodb
+      - aths
+      - crms
+      - orms
+      - cmps
+    networks:
+      - r-man-network

@@ -1,0 +1,367 @@
+services:
+  # =====================================================
+  # Traefik Reverse Proxy with SSL
+  # =====================================================
+  traefik:
+    build:
+      context: ./traefik
+      dockerfile: Dockerfile
+    image: iomega/traefik
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"      # HTTP (redirects to HTTPS)
+      - "443:443"    # HTTPS
+      - "8080:8080"  # Traefik Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_certs:/etc/traefik/certs
+    networks:
+      - wlan-network
+    labels:
+      - "traefik.enable=true"
+      # Dashboard
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.lan-demos.work.gd`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls=true"
+
+  # =====================================================
+  # MongoDB Service (Shared)
+  # =====================================================
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    restart: unless-stopped
+    environment:
+      # MongoDB Root Credentials
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: auth_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - wlan-network
+
+  # =====================================================
+  # Mongo Express (MongoDB Admin UI)
+  # =====================================================
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mongo-express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      # MongoDB Connection
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: password123
+      ME_CONFIG_MONGODB_URL: mongodb://admin:password123@mongodb:27017/
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      
+      # Basic Auth for Mongo Express UI
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+      
+      # Site Configuration
+      ME_CONFIG_SITE_BASEURL: /
+    depends_on:
+      - mongodb
+    networks:
+      - wlan-network
+    labels:
+      - "traefik.enable=true"
+      # Dashboard
+      - "traefik.http.routers.dashboard.rule=Host(`mongo-ui.lan-demos.work.gd`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls=true"
+
+  # =====================================================
+  # AUTH Service
+  # =====================================================
+  auth-service:
+    build:
+      context: ./Back-End/AUTH
+      dockerfile: Dockerfile
+    image: iomega/auth-service
+    container_name: auth-service
+    restart: unless-stopped
+    expose:
+      - "5001"
+    environment:
+      # Server Configuration
+      NODE_ENV: development
+      PORT: 5001
+      
+      # Database Configuration
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/auth_db?authSource=admin
+      
+      # JWT Configuration
+      JWT_ACCESS_SECRET: your-super-secret-jwt-access-key-change-in-production-min-32-chars
+      JWT_REFRESH_SECRET: your-super-secret-jwt-refresh-key-change-in-production-min-32-chars
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      JWT_ISSUER: wlan-auth-service
+      JWT_AUDIENCE: wlan-services
+      
+      # Email Configuration
+      EMAIL_ENABLED: true
+      EMAIL_HOST: smtp.gmail.com
+      EMAIL_PORT: 587
+      EMAIL_SECURE: false
+      EMAIL_USER: your-email@gmail.com
+      EMAIL_PASSWORD: your-app-password
+      EMAIL_FROM_NAME: WLAN Corporation
+      EMAIL_FROM_ADDRESS: your-email@gmail.com
+      
+      # CORS Configuration
+      CORS_ORIGINS: "*"
+      
+      # Logging Configuration
+      LOG_TYPE: CONSOLE
+      LOG_LEVEL: INFO
+      
+      # Rate Limiting
+      RATE_LIMIT_ENABLED: true
+      
+      # File Upload
+      UPLOAD_DIR: uploads/profiles
+      MAX_FILE_SIZE: 2097152
+      ALLOWED_FILE_TYPES: .jpg,.jpeg,.png
+      
+      # Pagination
+      DEFAULT_PAGE_SIZE: 10
+      MAX_PAGE_SIZE: 100
+    volumes:
+      - auth_uploads:/app/uploads
+    depends_on:
+      - mongodb
+      - traefik
+    networks:
+      - wlan-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth.rule=Host(`auth.lan-demos.work.gd`)"
+      - "traefik.http.routers.auth.entrypoints=websecure"
+      - "traefik.http.routers.auth.tls=true"
+      - "traefik.http.services.auth.loadbalancer.server.port=5001"
+
+  # =====================================================
+  # PMS Service (Product Management System)
+  # =====================================================
+  pms-service:
+    build:
+      context: ./Back-End/PMS
+      dockerfile: Dockerfile
+    image: iomega/pms-service
+    container_name: pms-service
+    restart: unless-stopped
+    expose:
+      - "5002"
+    environment:
+      # Application Configuration
+      APP_NAME: PMS Service
+      APP_VERSION: 0.1.0
+      APP_ENV: production
+      APP_HOST: 0.0.0.0
+      APP_PORT: 5002
+      DEBUG: False
+      
+      # Logging Configuration
+      LOG_LEVEL: INFO
+      LOG_TYPE: FILE
+      
+      # MongoDB Configuration
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/pms_db?authSource=admin
+      MONGODB_DATABASE: pms_db
+      MONGODB_GRIDFS_BUCKET: pms_files
+      
+      # AUTH Service Configuration
+      AUTH_SERVICE_URL: http://auth-service:5001
+      AUTH_VERIFY_ENDPOINT: /api/v1/auth/verify
+      
+      # Rate Limiting Configuration
+      RATE_LIMIT_ENABLED: True
+      RATE_LIMIT_PER_MINUTE: 100
+      
+      # CORS Configuration
+      CORS_ORIGINS: "*"
+      
+      # API Documentation
+      API_DOCS_URL: /docs
+      API_REDOC_URL: /redoc
+      OPENAPI_URL: /openapi.json
+      
+      # Seed Data Configuration
+      LOAD_SEED_DATA: False
+      
+      # File Upload Configuration
+      MAX_UPLOAD_SIZE_MB: 5
+      ALLOWED_IMAGE_FORMATS: image/jpeg,image/png,image/webp
+      
+      # QR Code Configuration
+      QR_CODE_SIZE: 300
+      QR_CODE_ERROR_CORRECTION: H
+      
+      # Barcode Configuration
+      BARCODE_WIDTH: 400
+      BARCODE_HEIGHT: 200
+      
+      # SKU Configuration
+      SKU_SEQUENCE_START: 1
+      SKU_SEQUENCE_PAD: 4
+      
+      # Unsplash API Configuration
+      UNSPLASH_ACCESS_KEY: AZBKfvSErVqd2VDa4Sd04MSCLxzXBdNtozlPJ3sEy6E
+      UNSPLASH_SECRET_KEY: K7qWwH3oVFEw1i6ynUsReQ9h4ZlZ30eMp1NIHXWZBMo
+      UNSPLASH_APPLICATION_ID: 323710
+    depends_on:
+      - mongodb
+      - auth-service
+      - traefik
+    networks:
+      - wlan-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pms.rule=Host(`pms.lan-demos.work.gd`)"
+      - "traefik.http.routers.pms.entrypoints=websecure"
+      - "traefik.http.routers.pms.tls=true"
+      - "traefik.http.services.pms.loadbalancer.server.port=5002"
+
+  # =====================================================
+  # Frontend Web Application (Production)
+  # =====================================================
+  wlan-web:
+    build:
+      context: ./Front-End/Web
+      dockerfile: Dockerfile
+      args:
+        VITE_AUTH_API_URL: /api/v1
+        VITE_PMS_API_URL: /api/v1
+        VITE_APP_NAME: WLAN Warehouse Management
+        VITE_SESSION_TIMEOUT: 1800000
+        VITE_TOKEN_REFRESH_INTERVAL: 300000
+    image: iomega/wlan-web
+    container_name: wlan-web
+    restart: unless-stopped
+    expose:
+      - "80"
+    depends_on:
+      - auth-service
+      - pms-service
+      - traefik
+    networks:
+      - wlan-network
+    labels:
+      - "traefik.enable=true"
+      # HTTP router (redirects to HTTPS)
+      - "traefik.http.routers.web-http.rule=Host(`web.lan-demos.work.gd`)"
+      - "traefik.http.routers.web-http.entrypoints=web"
+      - "traefik.http.routers.web-http.middlewares=web-redirect"
+      # HTTPS router
+      - "traefik.http.routers.web.rule=Host(`web.lan-demos.work.gd`)"
+      - "traefik.http.routers.web.entrypoints=websecure"
+      - "traefik.http.routers.web.tls=true"
+      # Redirect middleware
+      - "traefik.http.middlewares.web-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.web-redirect.redirectscheme.permanent=true"
+      # Service
+      - "traefik.http.services.web.loadbalancer.server.port=80"
+
+  # =====================================================
+  # AUTH Database Seeder (Runs once)
+  # =====================================================
+  auth-seeder:
+    build:
+      context: ./Back-End/AUTH
+      dockerfile: Dockerfile.seeder
+    image: iomega/auth-seeder
+    container_name: auth-seeder
+    restart: "no"
+    environment:
+      # MongoDB Configuration
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/auth_db?authSource=admin
+      NODE_ENV: development
+      
+      # JWT Configuration (needed for models)
+      JWT_ACCESS_SECRET: your-super-secret-jwt-access-key-change-in-production-min-32-chars
+      JWT_REFRESH_SECRET: your-super-secret-jwt-refresh-key-change-in-production-min-32-chars
+    command: >
+      sh -c "
+        echo '⏳ Waiting for AUTH service to be ready...' &&
+        sleep 10 &&
+        echo '🌱 Running AUTH database seeder...' &&
+        node scripts/seed-with-users.js &&
+        echo '✅ AUTH seeding completed!'
+      "
+    depends_on:
+      - mongodb
+      - auth-service
+    networks:
+      - wlan-network
+
+  # =====================================================
+  # PMS Database Seeder (Runs once)
+  # =====================================================
+  pms-seeder:
+    build:
+      context: ./Back-End/PMS
+      dockerfile: Dockerfile.seeder
+    image: iomega/pms-seeder
+    container_name: pms-seeder
+    restart: "no"
+    environment:
+      # Python Environment
+      PYTHONUNBUFFERED: 1
+      
+      # API Configuration - Use Docker service names
+      PMS_API_URL: http://pms-service:5002/api/v1
+      AUTH_API_URL: http://auth-service:5001/api/v1/auth
+      
+      # Login Credentials
+      LOGIN_EMAIL: jtdhamodharan@gmail.com
+      LOGIN_PASSWORD: Prestige123!
+    command: >
+      sh -c "
+        echo '⏳ Waiting for PMS service to be ready...' &&
+        sleep 15 &&
+        echo '🌱 Running PMS database seeder...' &&
+        python scripts/generate_test_data.py &&
+        echo '✅ PMS seeding completed!'
+      "
+    depends_on:
+      - mongodb
+      - auth-service
+      - pms-service
+      - auth-seeder
+    networks:
+      - wlan-network
+
+# =====================================================
+# Networks
+# =====================================================
+networks:
+  wlan-network:
+    driver: bridge
+    name: wlan-network
+
+# =====================================================
+# Volumes
+# =====================================================
+volumes:
+  mongodb_data:
+    driver: local
+    name: mongodb-data
+  mongodb_config:
+    driver: local
+    name: mongodb-config
+  auth_uploads:
+    driver: local
+    name: auth-uploads
+  traefik_certs:
+    driver: local
+    name: traefik-certs

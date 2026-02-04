@@ -1,0 +1,24 @@
+{
+  "name": "rman-database-seeder",
+  "version": "1.0.0",
+  "description": "Database seeder for R-MAN E-Commerce microservices",
+  "type": "module",
+  "main": "seed.js",
+  "scripts": {
+    "seed": "node seed.js"
+  },
+  "keywords": [
+    "seeder",
+    "database",
+    "mongodb",
+    "rman"
+  ],
+  "author": "Ramkumar JD",
+  "license": "MIT",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "dotenv": "^16.3.1",
+    "mongodb": "^6.3.0",
+    "mongoose": "^8.0.3"
+  }
+}
