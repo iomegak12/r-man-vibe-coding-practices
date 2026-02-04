@@ -1,0 +1,42 @@
+# =====================================================
+# Traefik Static Configuration
+# =====================================================
+
+# API and Dashboard
+api:
+  dashboard: true
+  insecure: true  # Dashboard accessible on port 8080
+
+# Entry Points
+entryPoints:
+  web:
+    address: ":80"
+    # Redirect all HTTP to HTTPS
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  
+  websecure:
+    address: ":443"
+
+# Providers
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: wlan-network
+  
+  file:
+    directory: "/etc/traefik/dynamic"
+    watch: true
+
+# Logging
+log:
+  level: INFO
+  format: common
+
+# Access Logs
+accessLog:
+  format: common

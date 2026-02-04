@@ -1,0 +1,13 @@
+# =====================================================
+# Dynamic TLS Configuration
+# =====================================================
+
+tls:
+  certificates:
+    - certFile: /etc/traefik/certs/fullchain.pem
+      keyFile: /etc/traefik/certs/privkey.pem
+  
+  options:
+    default:
+      minVersion: VersionTLS12
+      sniStrict: true

@@ -13,6 +13,7 @@ This directory contains the Docker Compose configuration for deploying the compl
 | **Web App** | 3000 | Node.js 22 + Nginx (Alpine) | React Frontend Application |
 | **MongoDB** | 27017 | MongoDB 7.0 | Shared Database |
 | **Mongo Express** | 8081 | Latest | MongoDB Admin UI |
+| **Traefik** | 80/443/8080 | Traefik v2.11 | Reverse Proxy & Load Balancer |
 | **Seeder** | - | Node.js 22 (Alpine) | Database Seeder (runs once) |
 
 ## 🚀 Quick Start
@@ -21,7 +22,7 @@ This directory contains the Docker Compose configuration for deploying the compl
 - Docker Engine 20.10+
 - Docker Compose 2.0+
 - At least 4GB RAM available for Docker
-- Ports 5001-5004, 8081, and 27017 available
+- Ports 80, 443, 5001-5004, 8080, 8081, and 27017 available
 
 ### 1. Build and Start All Services
 
@@ -124,9 +125,17 @@ MONGO_INITDB_ROOT_PASSWORD: password123
 Once deployed, access the services at:
 
 ### Frontend Application
-- **Web App**: http://localhost:3000
+- **Web App (Direct)**: http://localhost:3000
+- **Web App (Traefik HTTPS)**: https://rman.localhost or https://localhost
+- **Web App (Traefik HTTP)**: http://rman.localhost or http://localhost (auto-redirects to HTTPS)
 
-### API Endpoints
+### API Endpoints via Traefik (HTTPS with SSL)
+- **ATHS API**: https://auth.localhost or https://localhost/api/auth
+- **CRMS API**: https://customers.localhost or https://localhost/api/customers
+- **ORMS API**: https://orders.localhost or https://localhost/api/orders
+- **CMPS API**: https://complaints.localhost or https://localhost/api/complaints
+
+### API Endpoints (Direct Access)
 - **ATHS API**: http://localhost:5001/api
 - **ATHS Swagger**: http://localhost:5001/api-docs
 - **CRMS API**: http://localhost:5002/api
@@ -136,8 +145,9 @@ Once deployed, access the services at:
 - **CMPS API**: http://localhost:5004/api
 - **CMPS Swagger**: http://localhost:5004/docs
 
-### Database Management
-- **Mongo Express**: http://localhost:8081 (admin/admin123)
+### Management Interfaces
+- **Traefik Dashboard**: http://localhost:8080 or http://traefik.localhost
+- **Mongo Express**: http://localhost:8081 or https://db.localhost (admin/admin123)
 
 ## 🔍 Health Checks
 
@@ -170,6 +180,7 @@ Data is persisted in Docker volumes:
 | `rman-crms-logs` | CRMS service logs |
 | `rman-orms-logs` | ORMS service logs |
 | `rman-cmps-logs` | CMPS service logs |
+| `rman-traefik-certs` | Traefik SSL certificates |
 
 ### View Volumes
 ```bash
@@ -186,23 +197,137 @@ docker cp rman-mongodb:/data/backup ./mongodb-backup
 
 All services run on the `r-man-network` bridge network, allowing seamless inter-service communication using service names as hostnames.
 
+## 🔒 Traefik Reverse Proxy
+
+Traefik provides:
+- **SSL/TLS Termination**: Automatic HTTPS with SSL certificates
+- **HTTP to HTTPS Redirect**: All HTTP requests automatically redirect to HTTPS
+- **Service Discovery**: Automatic routing based on Docker labels
+- **Dashboard**: Web UI for monitoring routes and services
+- **Load Balancing**: Distributes traffic across service instances
+
+### Traefik Features
+
+#### SSL Certificates
+- Certificates downloaded from GitHub at startup
+- Stored in persistent volume: `rman-traefik-certs`
+- Minimum TLS version: TLS 1.2
+- SNI strict mode enabled
+
+#### Routing Rules
+Each service is accessible via:
+- **Host-based routing**: `https://service.localhost`
+- **Path-based routing**: `https://localhost/api/service`
+- **Auto HTTP→HTTPS redirect**: All HTTP requests upgrade to HTTPS
+
+#### Dashboard
+Access Traefik dashboard at:
+- http://localhost:8080
+- http://traefik.localhost
+
+The dashboard shows:
+- Active routes and services
+- Health status
+- Request metrics
+- TLS configuration
+
+### Traefik Configuration Files
+
+Located in `deployment/traefik/`:
+- `Dockerfile`: Multi-stage build with cert download
+- `traefik.yml`: Static configuration (entrypoints, providers)
+- `dynamic/certificates.yml`: TLS certificate configuration
+- `download-certs.sh`: SSL certificate download script
+
+### SSL Certificate Management
+
+Certificates are automatically downloaded from GitHub:
+```
+URL: https://github.com/iomegak12/app-deployment-artifacts/raw/refs/heads/main/r-man-work-gd-certificates.zip
+Files: fullchain.pem, privkey.pem
+```
+
+To update certificates:
+```bash
+# Restart Traefik to re-download certificates
+docker-compose restart traefik
+
+# View certificate logs
+docker-compose logs traefik
+```
+
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                       r-man-network                          │
-│                                                              │
-│  ┌──────┐  ┌──────┐  ┌──────┐  ┌──────┐  ┌─────────────┐  │
-│  │ ATHS │  │ CRMS │  │ ORMS │  │ CMPS │  │   MongoDB   │  │
-│  │ 5001 │  │ 5002 │  │ 5003 │  │ 5004 │  │    27017    │  │
-│  └──┬───┘  └──┬───┘  └──┬───┘  └──┬───┘  └──────┬──────┘  │
-│     │         │         │         │              │          │
-│     └─────────┴─────────┴─────────┴──────────────┘          │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────┐
+│                        r-man-network                               │
+│                                                                    │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │                     Traefik (80/443/8080)                    │ │
+│  │          SSL Termination & Reverse Proxy                     │ │
+│  └───┬─────────┬─────────┬─────────┬─────────┬─────────┬───────┘ │
+│      │         │         │         │         │         │          │
+│  ┌───▼──┐  ┌──▼───┐ ┌───▼──┐  ┌──▼───┐  ┌──▼───┐  ┌──▼───────┐ │
+│  │ Web  │  │ ATHS │ │ CRMS │  │ ORMS │  │ CMPS │  │  Mongo   │ │
+│  │ 3000 │  │ 5001 │ │ 5002 │  │ 5003 │  │ 5004 │  │  Express │ │
+│  └──────┘  └──┬───┘ └──┬───┘  └──┬───┘  └──┬───┘  └────┬─────┘ │
+│                │        │         │         │            │        │
+│                └────────┴─────────┴─────────┴────────────┘        │
+│                                  │                                │
+│                           ┌──────▼──────┐                         │
+│                           │   MongoDB   │                         │
+│                           │    27017    │                         │
+│                           └─────────────┘                         │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+
+Traffic Flow:
+1. Client → Traefik (HTTPS/443)
+2. Traefik → Service Discovery via Docker labels
+3. Traefik → SSL Termination & Routing
+4. Traefik → Backend Service (HTTP internal)
+5. Service → MongoDB (internal network)
 ```
 
 ## 🐛 Troubleshooting
+
+### Traefik Issues
+
+#### SSL Certificate Not Found
+```bash
+# Check if certificates downloaded
+docker-compose logs traefik | grep -i cert
+
+# Manually verify certificates in volume
+docker exec rman-traefik ls -la /etc/traefik/certs/
+
+# Re-download certificates
+docker-compose restart traefik
+```
+
+#### Service Not Routing
+```bash
+# Check Traefik dashboard
+# Visit http://localhost:8080
+
+# Verify service has Traefik labels
+docker inspect rman-aths | grep -i traefik
+
+# Check Traefik logs for routing errors
+docker-compose logs traefik | grep -i error
+```
+
+#### HTTPS Not Working
+```bash
+# Verify port 443 is exposed
+docker-compose ps traefik
+
+# Test HTTP to HTTPS redirect
+curl -I http://localhost
+
+# Check certificate files
+docker exec rman-traefik cat /etc/traefik/certs/fullchain.pem
+```
 
 ### Service won't start
 ```bash

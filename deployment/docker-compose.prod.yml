@@ -1,4 +1,10 @@
 # =====================================================
+# R-MAN E-Commerce - Production Docker Compose
+# Domain: r-man.work.gd
+# Uses pre-built images (no build context)
+# =====================================================
+
+# =====================================================
 # Networks
 # =====================================================
 networks:
@@ -91,9 +97,6 @@ services:
   # ATHS - Authentication Service
   # =====================================================
   aths:
-    build:
-      context: ../back-end/aths
-      dockerfile: Dockerfile
     image: rmanv1/aths:latest
     container_name: rman-aths
     restart: unless-stopped
@@ -177,9 +180,6 @@ services:
   # CRMS - Customer Management Service
   # =====================================================
   crms:
-    build:
-      context: ../back-end/crms
-      dockerfile: Dockerfile
     image: rmanv1/crms:latest
     container_name: rman-crms
     restart: unless-stopped
@@ -208,7 +208,7 @@ services:
       SERVICE_TIMEOUT: 30
 
       # CORS Configuration
-      CORS_ORIGINS: '["*"]'
+      CORS_ORIGINS: '*'
       CORS_CREDENTIALS: true
 
       # Pagination
@@ -242,9 +242,6 @@ services:
   # ORMS - Order Management Service
   # =====================================================
   orms:
-    build:
-      context: ../back-end/orms
-      dockerfile: Dockerfile
     image: rmanv1/orms:latest
     container_name: rman-orms
     restart: unless-stopped
@@ -313,9 +310,6 @@ services:
   # CMPS - Complaint Management Service
   # =====================================================
   cmps:
-    build:
-      context: ../back-end/cmps
-      dockerfile: Dockerfile
     image: rmanv1/cmps:latest
     container_name: rman-cmps
     restart: unless-stopped
@@ -359,7 +353,7 @@ services:
       COMPLAINT_ID_PREFIX: CMP
 
       # CORS Configuration
-      CORS_ORIGINS: '["*"]'
+      CORS_ORIGINS: '[\"*\"]'
 
       # Logging
       LOG_LEVEL: INFO
@@ -389,15 +383,6 @@ services:
   # Web Application (React Frontend)
   # =====================================================
   web:
-    build:
-      context: ../front-end/app
-      dockerfile: Dockerfile
-      args:
-        REACT_APP_ATHS_URL: https://aths.r-man.work.gd
-        REACT_APP_CRMS_URL: https://crms.r-man.work.gd
-        REACT_APP_ORMS_URL: https://orms.r-man.work.gd
-        REACT_APP_CMPS_URL: https://cmps.r-man.work.gd
-        REACT_APP_ENV: production
     image: rmanv1/web:latest
     container_name: rman-web
     restart: unless-stopped
@@ -425,9 +410,6 @@ services:
   # Database Seeder (Runs once after all services start)
   # =====================================================
   seeder:
-    build:
-      context: ../back-end/seeding
-      dockerfile: Dockerfile
     image: rmanv1/seeder:latest
     container_name: rman-seeder
     restart: "no"
@@ -470,9 +452,6 @@ services:
   # Traefik - Reverse Proxy & Load Balancer
   # =====================================================
   traefik:
-    build:
-      context: ./traefik
-      dockerfile: Dockerfile
     image: rmanv1/traefik:latest
     container_name: rman-traefik
     restart: unless-stopped
