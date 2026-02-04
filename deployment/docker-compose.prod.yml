@@ -208,7 +208,7 @@ services:
       SERVICE_TIMEOUT: 30
 
       # CORS Configuration
-      CORS_ORIGINS: '*'
+      CORS_ORIGINS: '["*"]'
       CORS_CREDENTIALS: true
 
       # Pagination
@@ -353,7 +353,7 @@ services:
       COMPLAINT_ID_PREFIX: CMP
 
       # CORS Configuration
-      CORS_ORIGINS: '[\"*\"]'
+      CORS_ORIGINS: '["*"]'
 
       # Logging
       LOG_LEVEL: INFO
